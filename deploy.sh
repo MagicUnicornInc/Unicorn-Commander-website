@@ -1,83 +1,117 @@
 #!/bin/bash
 
-# Configuration
+# --- Configuration ---
 APP_NAME="unicorn-commander"
-DOCKER_COMPOSE="docker-compose"
-TAG=$(date +%Y%m%d_%H%M%S)
+COMPOSE_PROJECT_NAME="unicorn-commander"
+GITHUB_REPO="https://github.com/yourusername/your-repo.git" # Replace with your repo
+REMOTE_HOST="your_server_ip_or_domain" # Replace with your server address
+REMOTE_USER="your_user" # Replace with your server username
+REMOTE_DIR="/opt/unicorn-commander" # Customize deployment directory
+SSH_KEY="~/.ssh/id_rsa" # Customize SSH key path
+TAG="prod-$(date +%Y%m%d%H%M%S)"
 
-# Colors for output
+# --- Colors for output ---
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-# Function to check if command succeeded
+# --- Functions ---
 check_status() {
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ $1${NC}"
-    else
-        echo -e "${RED}✗ $1${NC}"
-        exit 1
-    fi
-}
-
-# Function to wait for container health
-wait_for_health() {
-    echo "Waiting for container to be healthy..."
-    RETRIES=0
-    MAX_RETRIES=30
-    
-    while [ $RETRIES -lt $MAX_RETRIES ]; do
-        if [ "$($DOCKER_COMPOSE ps --format json | grep -o '"Health": "[^"]*"' | grep -o '[^"]*$')" == "healthy" ]; then
-            return 0
-        fi
-        echo -n "."
-        sleep 2
-        RETRIES=$((RETRIES+1))
-    done
-    
-    return 1
-}
-
-# Ensure clean shutdown
-cleanup() {
-    echo "Cleaning up..."
-    $DOCKER_COMPOSE down
+  if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✓ $1${NC}"
+  else
+    echo -e "${RED}✗ $1${NC}"
     exit 1
+  fi
 }
 
-trap cleanup SIGINT SIGTERM
+wait_for_health() {
+  echo "Waiting for container to be healthy..."
+  RETRIES=0
+  MAX_RETRIES=30
 
-# Build and deploy
-echo "🚀 Deploying $APP_NAME..."
+  while [ $RETRIES -lt $MAX_RETRIES ]; do
+    HEALTH_STATUS=$(ssh -i $SSH_KEY -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST "docker inspect --format='{{json .State.Health}}' $APP_NAME")
+    if [[ $HEALTH_STATUS == *"\"Status\":\"healthy\""* ]]; then
+      return 0
+    fi
+    echo -n "."
+    sleep 2
+    RETRIES=$((RETRIES+1))
+  done
 
-# Build new image
-echo "Building Docker image..."
-$DOCKER_COMPOSE build --no-cache
-check_status "Build completed"
+  return 1
+}
 
-# Tag the image
-echo "Tagging image..."
-$DOCKER_COMPOSE build --build-arg TAG=$TAG
-check_status "Image tagged as $TAG"
+# --- Deployment ---
 
-# Stop existing container
-echo "Stopping existing container..."
-$DOCKER_COMPOSE down
-check_status "Existing container stopped"
+echo -e "${GREEN}🚀 Deploying $APP_NAME to $REMOTE_HOST${NC}"
 
-# Start new container
-echo "Starting new container..."
-TAG=$TAG $DOCKER_COMPOSE up -d
-check_status "New container started"
+# --- 1. Prepare remote server ---
+echo -e "${GREEN}--- Preparing remote server ---${NC}"
+ssh -i $SSH_KEY -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST << EOF
+  # Update system
+  sudo apt-get update -y
+  sudo apt-get upgrade -y
 
-# Wait for health check
-if wait_for_health; then
+  # Install Docker if not present
+  if ! command -v docker &> /dev/null; then
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sudo sh get-docker.sh
+    sudo usermod -aG docker $REMOTE_USER
+    rm get-docker.sh
+  fi
+
+  # Install Docker Compose if not present
+  if ! command -v docker-compose &> /dev/null; then
+    sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
+  fi
+
+  # Create application directory if it doesn't exist
+  mkdir -p $REMOTE_DIR
+EOF
+check_status "Remote server prepared"
+
+# --- 2. Transfer files ---
+echo -e "${GREEN}--- Transferring files ---${NC}"
+rsync -avz -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no" --exclude='.git' --exclude='node_modules' . $REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR
+check_status "Files transferred"
+
+# --- 3. Build and deploy ---
+echo -e "${GREEN}--- Building and deploying ---${NC}"
+ssh -i $SSH_KEY -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST << EOF
+  cd $REMOTE_DIR
+
+  # Build the image
+  echo "Building Docker image..."
+  docker build -t $APP_NAME:$TAG .
+  
+  # Stop and remove existing containers and images
+  echo "Stopping and removing old containers and images..."
+  if docker ps -a --format '{{.Names}}' | grep -q "$COMPOSE_PROJECT_NAME"; then
+    docker-compose -p $COMPOSE_PROJECT_NAME down
+  fi
+  if docker images -q $APP_NAME:latest 2> /dev/null; then
+    docker rmi $APP_NAME:latest
+  fi
+
+  # Start the new container
+  echo "Starting new container..."
+  COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME TAG=$TAG docker-compose up -d
+
+  # Wait for health check
+  if wait_for_health; then
     echo -e "${GREEN}✓ Container is healthy${NC}"
-else
+  else
     echo -e "${RED}✗ Container health check failed${NC}"
     echo "Logs from container:"
-    $DOCKER_COMPOSE logs
-    cleanup
-fi
+    docker-compose -p $COMPOSE_PROJECT_NAME logs
+    exit 1
+  fi
+EOF
 
-echo -e "${GREEN}✅ Deployment completed successfully!${NC}"
+check_status "Deployment completed"
+
+echo -e "${GREEN}✅ Application deployed successfully!${NC}"
+echo "Access the application via your server's IP or domain, pointing your reverse proxy to the appropriate port."

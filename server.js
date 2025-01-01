@@ -80,6 +80,22 @@ app.get('/api/preorders/remaining', async (req, res) => {
   }
 });
 
+// Endpoint to get claimed units in the last 24 hours
+app.get('/api/preorders/claimed-today', async (req, res) => {
+  try {
+    const db = await dbPromise;
+    const result = await db.get(
+      "SELECT COUNT(*) as count FROM preorders WHERE status = 'completed' AND createdAt >= datetime('now', '-24 hours')"
+    );
+
+    const claimedToday = result.count;
+    res.json({ claimedToday });
+  } catch (error) {
+    console.error('Error fetching claimed today:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Endpoint to handle Stripe webhook
 app.post('/api/stripe-webhook', async (req, res) => {
   const event = req.body;
