@@ -16,6 +16,7 @@ import { ExplainerVideo } from './components/ExplainerVideo';
 const App = () => {
   const [remainingUnits, setRemainingUnits] = useState(497);
   const [claimedToday, setClaimedToday] = useState(0);
+  const [showVideo, setShowVideo] = useState(false); // Initially hide the video
 
   useEffect(() => {
     fetchRemainingUnits();
@@ -107,12 +108,14 @@ const App = () => {
       {/* Social Proof Banner */}
       <SocialProofBanner claimedCount={remainingUnits} />
 
-      {/* Explainer Video Section */}
-      <section className="container mx-auto px-4 py-16">
-        <div className="max-w-4xl mx-auto">
-          <ExplainerVideo videoUrl="YOUR_VIDEO_URL" />
-        </div>
-      </section>
+      {/* Explainer Video Section (Conditional) */}
+      {showVideo && (
+        <section className="container mx-auto px-4 py-16">
+          <div className="max-w-4xl mx-auto">
+            <ExplainerVideo videoUrl="YOUR_VIDEO_URL" />
+          </div>
+        </section>
+      )}
 
       {/* Founders Edition Section */}
       <section className="container mx-auto px-4 py-16">

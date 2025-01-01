@@ -51,8 +51,8 @@ echo -e "${GREEN}🚀 Deploying $APP_NAME to $REMOTE_HOST${NC}"
 echo -e "${GREEN}--- Preparing remote server ---${NC}"
 ssh -i $SSH_KEY -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST << EOF
   # Update system
-  sudo apt-get update -y
-  sudo apt-get upgrade -y
+  sudo apt-get update -y || true
+  sudo apt-get upgrade -y || true
 
   # Install Docker if not present
   if ! command -v docker &> /dev/null; then
