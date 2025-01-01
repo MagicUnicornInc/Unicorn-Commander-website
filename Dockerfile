@@ -22,18 +22,15 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Add non-root user
-RUN adduser -D -H -u 1001 -G www-data www-data
-
-# Set permissions
-RUN chown -R www-data:www-data /usr/share/nginx/html && \
-    chmod -R 755 /usr/share/nginx/html && \
-    chown -R www-data:www-data /var/cache/nginx && \
-    chown -R www-data:www-data /var/log/nginx && \
-    chown -R www-data:www-data /etc/nginx/conf.d
+# Create necessary directories with correct permissions
+RUN mkdir -p /var/cache/nginx /var/run/nginx /var/log/nginx && \
+    chown -R nginx:nginx /var/cache/nginx /var/run/nginx /var/log/nginx /usr/share/nginx/html /etc/nginx/conf.d && \
+    chmod -R 755 /var/cache/nginx /var/run/nginx /var/log/nginx /usr/share/nginx/html && \
+    # Remove default nginx pid path from nginx.conf
+    sed -i '/pid/d' /etc/nginx/nginx.conf
 
 # Switch to non-root user
-USER www-data
+USER nginx
 
 EXPOSE 8080
 

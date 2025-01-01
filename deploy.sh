@@ -20,6 +20,33 @@ check_status() {
     fi
 }
 
+# Function to wait for container health
+wait_for_health() {
+    echo "Waiting for container to be healthy..."
+    RETRIES=0
+    MAX_RETRIES=30
+    
+    while [ $RETRIES -lt $MAX_RETRIES ]; do
+        if [ "$($DOCKER_COMPOSE ps --format json | grep -o '"Health": "[^"]*"' | grep -o '[^"]*$')" == "healthy" ]; then
+            return 0
+        fi
+        echo -n "."
+        sleep 2
+        RETRIES=$((RETRIES+1))
+    done
+    
+    return 1
+}
+
+# Ensure clean shutdown
+cleanup() {
+    echo "Cleaning up..."
+    $DOCKER_COMPOSE down
+    exit 1
+}
+
+trap cleanup SIGINT SIGTERM
+
 # Build and deploy
 echo "🚀 Deploying $APP_NAME..."
 
@@ -44,16 +71,13 @@ TAG=$TAG $DOCKER_COMPOSE up -d
 check_status "New container started"
 
 # Wait for health check
-echo "Waiting for health check..."
-sleep 10
-HEALTH_STATUS=$($DOCKER_COMPOSE ps | grep $APP_NAME | grep "healthy" || echo "unhealthy")
-if [[ $HEALTH_STATUS == *"healthy"* ]]; then
+if wait_for_health; then
     echo -e "${GREEN}✓ Container is healthy${NC}"
 else
     echo -e "${RED}✗ Container health check failed${NC}"
     echo "Logs from container:"
     $DOCKER_COMPOSE logs
-    exit 1
+    cleanup
 fi
 
 echo -e "${GREEN}✅ Deployment completed successfully!${NC}"

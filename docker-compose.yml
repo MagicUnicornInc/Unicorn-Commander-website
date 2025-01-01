@@ -20,6 +20,7 @@ services:
       - app-network
     volumes:
       - nginx-cache:/var/cache/nginx
+      - nginx-run:/var/run/nginx
     environment:
       - NODE_ENV=production
 
@@ -29,3 +30,4 @@ networks:
 
 volumes:
   nginx-cache:
+  nginx-run:
