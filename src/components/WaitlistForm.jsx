@@ -1,52 +1,37 @@
 import React, { useState } from 'react';
 import { FaCheck, FaGift, FaRocket } from 'react-icons/fa';
 import toast from 'react-hot-toast';
-import { PreorderModal } from './PreorderModal';
-
-const PreorderBenefits = () => (
-  <div className="bg-gray-800/50 p-6 rounded-xl border border-purple-500/30 mb-8">
-    <h4 className="text-xl font-bold mb-4 text-purple-400">
-      <FaRocket className="inline-block mr-2" />
-      Preorder Benefits
-    </h4>
-    <ul className="space-y-2">
-      <li className="flex items-center text-gray-300">
-        <FaCheck className="text-green-500 mr-2" /> Early Access to Hosted Tools
-      </li>
-      <li className="flex items-center text-gray-300">
-        <FaCheck className="text-green-500 mr-2" /> Guaranteed February Delivery
-      </li>
-      <li className="flex items-center text-gray-300">
-        <FaCheck className="text-green-500 mr-2" /> FREE Hosted Version for 1 Year
-      </li>
-      <li className="flex items-center text-gray-300">
-        <FaGift className="text-green-500 mr-2" /> Limited to First 1,000 Orders
-      </li>
-    </ul>
-  </div>
-);
 
 export const WaitlistForm = () => {
   const [email, setEmail] = useState('');
-  const [interest, setInterest] = useState('preorder'); // Default to preorder
-  const [showPreorderModal, setShowPreorderModal] = useState(false);
+  const [betaTester, setBetaTester] = useState(false);
+  const [hostedInterest, setHostedInterest] = useState(false);
+  const [selfHostedInterest, setSelfHostedInterest] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (interest === 'preorder') {
-      setShowPreorderModal(true);
-    } else {
-      // Store waitlist entry in localStorage
-      const waitlist = JSON.parse(localStorage.getItem('waitlist') || '[]');
-      waitlist.push({
+
+    const response = await fetch('/waitlist', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         email,
-        date: new Date().toISOString(),
-        type: 'hosted'
-      });
-      localStorage.setItem('waitlist', JSON.stringify(waitlist));
-      
-      toast.success('Thanks for joining the waitlist! We\'ll keep you updated on hosted solutions.');
+        betaTester,
+        hostedInterest,
+        selfHostedInterest,
+      }),
+    });
+
+    if (response.ok) {
+      toast.success('Thanks for joining the waitlist! We\'ll keep you updated.');
       setEmail('');
+      setBetaTester(false);
+      setHostedInterest(false);
+      setSelfHostedInterest(false);
+    } else {
+      toast.error('Something went wrong. Please try again.');
     }
   };
 
@@ -54,27 +39,10 @@ export const WaitlistForm = () => {
     <div className="max-w-md mx-auto">
       <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
         <div className="text-center mb-6">
-          <h3 className="text-2xl font-bold mb-2">🚀 Preorders Are LIVE!</h3>
-          <p className="text-purple-400">The Future of Automation Ships February 14th!</p>
+          <h3 className="text-2xl font-bold mb-2">🚀 Join the Waitlist</h3>
+          <p className="text-purple-400">Be the first to try our hosted solution!</p>
         </div>
 
-        <div className="flex gap-4 mb-6">
-          <button
-            className={`flex-1 btn ${interest === 'preorder' ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => setInterest('preorder')}
-          >
-            Preorder Now
-          </button>
-          <button
-            className={`flex-1 btn ${interest === 'waitlist' ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => setInterest('waitlist')}
-          >
-            Hosted Only
-          </button>
-        </div>
-        
-        {interest === 'preorder' && <PreorderBenefits />}
-        
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
             type="email"
@@ -84,29 +52,38 @@ export const WaitlistForm = () => {
             className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 text-white placeholder-gray-400"
             required
           />
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              checked={betaTester}
+              onChange={(e) => setBetaTester(e.target.checked)}
+              className="mr-2"
+            />
+            <span className="text-gray-400">I'm interested in being a beta tester</span>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              checked={hostedInterest}
+              onChange={(e) => setHostedInterest(e.target.checked)}
+              className="mr-2"
+            />
+            <span className="text-gray-400">I'm interested in the hosted solution</span>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              checked={selfHostedInterest}
+              onChange={(e) => setSelfHostedInterest(e.target.checked)}
+              className="mr-2"
+            />
+            <span className="text-gray-400">I'm interested in the self-hosted solution</span>
+          </div>
           <button type="submit" className="w-full btn btn-primary">
-            {interest === 'preorder' ? 'Secure with $1,000 Deposit' : 'Join Hosted Waitlist'}
+            Join Waitlist
           </button>
         </form>
-        
-        <p className="mt-4 text-sm text-gray-400 text-center">
-          {interest === 'preorder' ? (
-            <>
-              <FaGift className="inline mr-2" />
-              Ships February 14th with FREE hosted access
-            </>
-          ) : (
-            'Get started with our hosted solution in the next few weeks'
-          )}
-        </p>
       </div>
-
-      {showPreorderModal && (
-        <PreorderModal 
-          onClose={() => setShowPreorderModal(false)}
-          email={email}
-        />
-      )}
     </div>
   );
 };
