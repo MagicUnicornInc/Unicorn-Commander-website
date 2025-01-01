@@ -26,8 +26,10 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 RUN mkdir -p /var/cache/nginx /var/run/nginx /var/log/nginx && \
     chown -R nginx:nginx /var/cache/nginx /var/run/nginx /var/log/nginx /usr/share/nginx/html /etc/nginx/conf.d && \
     chmod -R 755 /var/cache/nginx /var/run/nginx /var/log/nginx /usr/share/nginx/html && \
-    # Remove default nginx pid path from nginx.conf
-    sed -i '/pid/d' /etc/nginx/nginx.conf
+    # Update main nginx.conf
+    echo 'pid /var/run/nginx/nginx.pid;' > /etc/nginx/nginx.conf && \
+    echo 'events { worker_connections 1024; }' >> /etc/nginx/nginx.conf && \
+    echo 'http { include /etc/nginx/conf.d/*.conf; }' >> /etc/nginx/nginx.conf
 
 # Switch to non-root user
 USER nginx
