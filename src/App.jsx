@@ -16,7 +16,7 @@ import { ExplainerVideo } from './components/ExplainerVideo';
 const App = () => {
   const [remainingUnits, setRemainingUnits] = useState(497);
   const [claimedToday, setClaimedToday] = useState(0);
-  const [showVideo, setShowVideo] = useState(false); // Initially hide the video
+  const [showVideo, setShowVideo] = useState(false);
 
   useEffect(() => {
     fetchRemainingUnits();
@@ -58,6 +58,13 @@ const App = () => {
 
       {/* Header Section */}
       <header className="container mx-auto px-4 py-12 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-sm text-purple-400 mb-2"
+        >
+          Magic Unicorn presents...
+        </motion.div>
         <motion.h1
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
