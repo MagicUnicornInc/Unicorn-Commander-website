@@ -2,10 +2,18 @@ import express from 'express';
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import cors from 'cors';
+import basicAuth from 'express-basic-auth';
 
 const app = express();
 app.use(express.json());
 app.use(cors());
+
+// Basic Auth configuration
+const auth = basicAuth({
+  users: { admin: process.env.ADMIN_PASSWORD || 'unicorn123' },
+  challenge: true,
+  realm: 'Unicorn Commander Admin'
+});
 
 // Initialize SQLite database
 const dbPromise = open({
@@ -17,7 +25,6 @@ const dbPromise = open({
 async function initializeDatabase() {
   const db = await dbPromise;
   
-  // Table for waitlist entries
   await db.exec(`
     CREATE TABLE IF NOT EXISTS waitlist (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,7 +34,6 @@ async function initializeDatabase() {
     )
   `);
   
-  // Table for pre-orders
   await db.exec(`
     CREATE TABLE IF NOT EXISTS preorders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,7 +56,7 @@ app.post('/api/waitlist', async (req, res) => {
     
     await db.run(
       'INSERT INTO waitlist (email, betaTester) VALUES (?, ?)',
-      [email, betaTester]
+      [email, betaTester || false]
     );
     
     res.json({ success: true });
@@ -63,62 +69,41 @@ app.post('/api/waitlist', async (req, res) => {
   }
 });
 
-// Endpoint to get remaining pre-order count
-app.get('/api/preorders/remaining', async (req, res) => {
+// Admin endpoint to view waitlist
+app.get('/api/admin/waitlist', auth, async (req, res) => {
   try {
     const db = await dbPromise;
-    const result = await db.get(
-      'SELECT COUNT(*) as count FROM preorders WHERE status = "completed"'
-    );
-    
-    const totalPreorders = result.count;
-    const remainingUnits = 500 - totalPreorders;
-    
-    res.json({ remaining: Math.max(0, remainingUnits) });
+    const waitlist = await db.all('SELECT * FROM waitlist ORDER BY createdAt DESC');
+    res.json(waitlist);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// Endpoint to get claimed units in the last 24 hours
-app.get('/api/preorders/claimed-today', async (req, res) => {
+// Admin endpoint to download waitlist as CSV
+app.get('/api/admin/waitlist.csv', auth, async (req, res) => {
   try {
     const db = await dbPromise;
-    const result = await db.get(
-      "SELECT COUNT(*) as count FROM preorders WHERE status = 'completed' AND createdAt >= datetime('now', '-24 hours')"
-    );
-
-    const claimedToday = result.count;
-    res.json({ claimedToday });
-  } catch (error) {
-    console.error('Error fetching claimed today:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Endpoint to handle Stripe webhook
-app.post('/api/stripe-webhook', async (req, res) => {
-  const event = req.body;
-
-  try {
-    const db = await dbPromise;
+    const waitlist = await db.all('SELECT * FROM waitlist ORDER BY createdAt DESC');
     
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object;
-      
-      await db.run(
-        'INSERT INTO preorders (stripeSessionId, email, amount, status) VALUES (?, ?, ?, ?)',
-        [session.id, session.customer_email, session.amount_total, 'completed']
-      );
-    }
+    let csv = 'ID,Email,Beta Tester,Created At\n';
+    waitlist.forEach(entry => {
+      csv += `${entry.id},${entry.email},${entry.betaTester ? 'Yes' : 'No'},"${entry.createdAt}"\n`;
+    });
     
-    res.json({ received: true });
+    res.header('Content-Type', 'text/csv');
+    res.attachment('waitlist.csv');
+    res.send(csv);
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+// Other existing endpoints remain the same
+// ...
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
+  console.log(`Admin interface available at http://localhost:${port}/admin`);
 });

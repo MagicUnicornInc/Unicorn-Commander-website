@@ -4,24 +4,13 @@
 APP_NAME="unicorn-commander"
 COMPOSE_PROJECT_NAME="unicorn-commander"
 TAG="prod-$(date +%Y%m%d%H%M%S)"
+START_PORT=7000
+MAX_ATTEMPTS=10
 
 # --- Colors for output ---
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
-
-# --- Port Configuration ---
-read -p "Enter port number (default: 8080): " PORT
-PORT=${PORT:-8080}
-
-# Validate port number
-if ! [[ "$PORT" =~ ^[0-9]+$ ]] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
-  echo -e "${RED}Invalid port number. Using default port 8080.${NC}"
-  PORT=8080
-fi
-
-# Export port for docker-compose
-export PORT
 
 # --- Functions ---
 check_status() {
@@ -33,28 +22,33 @@ check_status() {
   fi
 }
 
-wait_for_health() {
-  echo "Waiting for container to be healthy..."
-  RETRIES=0
-  MAX_RETRIES=30
-
-  while [ $RETRIES -lt $MAX_RETRIES ]; do
-    HEALTH_STATUS=$(docker inspect --format='{{json .State.Health}}' $APP_NAME)
-    if [[ $HEALTH_STATUS == *"\"Status\":\"healthy\""* ]]; then
+find_available_port() {
+  local port=$START_PORT
+  local attempts=0
+  
+  while [ $attempts -lt $MAX_ATTEMPTS ]; do
+    if ! lsof -i :$port > /dev/null; then
+      echo $port
       return 0
     fi
-    echo -n "."
-    sleep 2
-    RETRIES=$((RETRIES+1))
+    port=$((port + 1))
+    attempts=$((attempts + 1))
   done
-
-  return 1
+  
+  echo -e "${RED}Error: Could not find available port in range ${START_PORT}-$((START_PORT + MAX_ATTEMPTS))${NC}"
+  exit 1
 }
 
 # --- Deployment ---
-echo -e "${GREEN}🚀 Deploying $APP_NAME on port $PORT${NC}"
+echo -e "${GREEN}🚀 Starting deployment of $APP_NAME${NC}"
 
-# Update nginx configuration with the custom port
+# Find available port
+PORT=$(find_available_port)
+export PORT
+
+echo -e "${GREEN}Using port: $PORT${NC}"
+
+# Update nginx configuration with the selected port
 sed "s/listen 8080/listen $PORT/" nginx.conf > nginx.custom.conf
 mv nginx.custom.conf nginx.conf
 
@@ -75,16 +69,20 @@ echo "Starting new container..."
 COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME TAG=$TAG docker-compose up -d
 check_status "Container started"
 
-# Wait for health check
-if wait_for_health; then
-  echo -e "${GREEN}✓ Container is healthy${NC}"
+# Wait for container to be ready
+echo "Waiting for container to be ready..."
+sleep 10
+
+# Verify deployment
+echo "Verifying deployment..."
+curl_output=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT)
+if [ "$curl_output" == "200" ]; then
+  echo -e "${GREEN}✅ Deployment successful!${NC}"
+  echo -e "${GREEN}Application is running on port $PORT${NC}"
+  echo -e "${GREEN}You can point your reverse proxy to this server's IP and port $PORT${NC}"
 else
-  echo -e "${RED}✗ Container health check failed${NC}"
-  echo "Logs from container:"
+  echo -e "${RED}❌ Deployment verification failed${NC}"
+  echo "Container logs:"
   docker-compose -p $COMPOSE_PROJECT_NAME logs
   exit 1
 fi
-
-echo -e "${GREEN}✅ Deployment completed successfully!${NC}"
-echo "The application is now running on port $PORT"
-echo "Point your reverse proxy to localhost:$PORT"
