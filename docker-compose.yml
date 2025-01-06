@@ -9,9 +9,9 @@ services:
     container_name: unicorn-commander
     restart: unless-stopped
     ports:
-      - "${PORT:-7000}:${PORT:-7000}"
+      - "${PORT:-8081}:${PORT:-8081}"
     environment:
-      - NGINX_PORT=${PORT:-7000}
+      - NGINX_PORT=${PORT:-8081}
     networks:
       - unicorn-net
 

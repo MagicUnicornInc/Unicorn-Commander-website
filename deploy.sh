@@ -4,7 +4,7 @@
 APP_NAME="unicorn-commander"
 COMPOSE_PROJECT_NAME="unicorn-commander"
 TAG="prod-$(date +%Y%m%d%H%M%S)"
-START_PORT=7000
+START_PORT=8081
 MAX_ATTEMPTS=10
 
 # --- Colors for output ---
