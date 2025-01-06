@@ -11,7 +11,7 @@ services:
     ports:
       - "${PORT:-7000}:${PORT:-7000}"
     environment:
-      - PORT=${PORT:-7000}
+      - NGINX_PORT=${PORT:-7000}
     networks:
       - unicorn-net
 

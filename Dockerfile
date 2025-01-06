@@ -23,8 +23,8 @@ FROM nginx:alpine
 # Copy built assets from build stage
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy nginx configuration template
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
 # Create necessary directories with correct permissions
 RUN mkdir -p /var/cache/nginx /var/run/nginx /var/log/nginx && \
@@ -33,9 +33,6 @@ RUN mkdir -p /var/cache/nginx /var/run/nginx /var/log/nginx && \
 
 # Switch to non-root user
 USER nginx
-
-# Expose port (will be overridden by runtime)
-EXPOSE 7000
 
 # Use nginx's daemon-off option to run in foreground
 CMD ["nginx", "-g", "daemon off;"]

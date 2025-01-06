@@ -45,12 +45,9 @@ echo -e "${GREEN}🚀 Starting deployment of $APP_NAME${NC}"
 # Find available port
 PORT=$(find_available_port)
 export PORT
+export NGINX_PORT=$PORT
 
 echo -e "${GREEN}Using port: $PORT${NC}"
-
-# Update nginx configuration with the selected port
-sed "s/listen 8080/listen $PORT/" nginx.conf > nginx.custom.conf
-mv nginx.custom.conf nginx.conf
 
 # Build the image
 echo "Building Docker image..."
